@@ -1,0 +1,4 @@
+[submodule "core"]
+	path = core
+	url = git@github.com:cubt85iz/automatos-server.git
+	branch = redesign_bu
