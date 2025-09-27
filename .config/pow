@@ -5,9 +5,9 @@
     "gotify",
     "jellyfin",
     "kavita",
-    "kometa",
     "lubelogger",
     "mealie",
+    "navidrome",
     "nextcloud",
     "nextcloud-clamav",
     "nextcloud-code",
@@ -17,10 +17,8 @@
     "opnsense-bkp",
     "paperless-ngx",
     "pinchflat",
-    "plex",
     "protonmail-bridge",
     "syncthing",
-    "tautulli",
     "unifi"
   ],
   "packages": [
