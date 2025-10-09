@@ -84,7 +84,7 @@ jobs:
           # Define tags for container image
           BRANCH="${{ github.ref_name }}"
           if [ "$BRANCH" = "main" ]; then
-            BUILD_TAGS=( "latest" "${BRANCH}" "${TIMESTAMP}" "${MAJOR_VERSION}.${DATE}")
+            BUILD_TAGS=( "latest" "${BRANCH}" "${TIMESTAMP}" "${MAJOR_VERSION}" "${MAJOR_VERSION}.${DATE}")
           else
             BUILD_TAGS=( "${BRANCH}" "${TIMESTAMP}" "${MAJOR_VERSION}.${DATE}")
           fi
