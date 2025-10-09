@@ -25,7 +25,7 @@ jobs:
           set -xeuo pipefail
 
           # Get version for container image
-          version=$(skopeo inspect docker://quay.io/fedora/fedora-coreos:stable > inspect.json | \
+          version=$(skopeo inspect docker://quay.io/fedora/fedora-coreos:stable | \
             jq -r '.Labels["org.opencontainers.image.version"]')
           echo "version=$version" >> $GITHUB_OUTPUT
 
