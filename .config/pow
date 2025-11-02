@@ -3,6 +3,8 @@
     "audiobookshelf",
     "beets",
     "gotify",
+    "immich",
+    "immich-proxy",
     "jellyfin",
     "kavita",
     "lubelogger",
@@ -18,7 +20,8 @@
     "radicale",
     "romm",
     "syncthing",
-    "unifi"
+    "unifi",
+    "uptime-kuma"
   ],
   "packages": [
     "borgbackup",
