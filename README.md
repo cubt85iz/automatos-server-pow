@@ -1,6 +1,6 @@
 # Automatos Server
 
-Automatos Server is a toolkit for creating OS images based on Fedora CoreOS. <goals> 
+Automatos Server is a toolkit for creating OS images based on Fedora CoreOS.
 
 ## How It Works
 

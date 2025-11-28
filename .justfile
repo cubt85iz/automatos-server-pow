@@ -2,20 +2,30 @@
 [linux]
 build:
   #!/usr/bin/env bash
-
+  
   set -euxo pipefail
 
-  BASE_TAG="stable-nvidia-zfs"
-  CONFIG="pow"
-  ROOT="core"
+  # Source .env file for variables
+  . .env
 
-  podman build \
-    -t automatos-server-$CONFIG:latest \
-    --build-arg BASE_TAG="$BASE_TAG" \
-    --build-arg CONFIG="$CONFIG" \
-    --build-arg ROOT="$ROOT" \
-    -f core/Containerfile \
-    .
+  # Defaults for unspecified values.
+  DEBUG=${DEBUG:-false}
+  INSTALL_NVIDIA=${INSTALL_NVIDIA:-false}
+  ROOT=${ROOT:-automatos-server}
+
+  if [ -n "$CONFIG" ]; then
+    podman build \
+      -t automatos-server-$CONFIG:latest \
+      --build-arg DEBUG="$DEBUG" \
+      --build-arg CONFIG="$CONFIG" \
+      --build-arg INSTALL_NVIDIA="$INSTALL_NVIDIA" \
+      --build-arg ROOT="$ROOT" \
+      -f core/Containerfile \
+      .
+  else
+    echo "ERROR: Value for CONFIG must be provided."
+    exit 1
+  fi
 
 # Updates the submodule for automatos.
 update:
