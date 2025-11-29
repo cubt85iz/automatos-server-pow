@@ -10,7 +10,8 @@ build:
 
   # Defaults for unspecified values.
   DEBUG=${DEBUG:-false}
-  INSTALL_NVIDIA=${INSTALL_NVIDIA:-false}
+  NVIDIA_TAG=${NVIDIA_TAG:-}
+  KERNEL_FLAVOR=${KERNEL_FLAVOR:-}
   ROOT=${ROOT:-automatos-server}
 
   if [ -n "$CONFIG" ]; then
@@ -18,7 +19,8 @@ build:
       -t automatos-server-$CONFIG:latest \
       --build-arg DEBUG="$DEBUG" \
       --build-arg CONFIG="$CONFIG" \
-      --build-arg INSTALL_NVIDIA="$INSTALL_NVIDIA" \
+      --build-arg NVIDIA_TAG="$NVIDIA_TAG" \
+      --build-arg KERNEL_FLAVOR="$KERNEL_FLAVOR" \
       --build-arg ROOT="$ROOT" \
       -f core/Containerfile \
       .
