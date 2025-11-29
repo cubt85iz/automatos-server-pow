@@ -35,7 +35,7 @@ jobs:
 
   build:
     name: Build and push image
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: always() && !cancelled()
     needs: [fcos_version]
     permissions:
@@ -47,24 +47,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Gather base tag for image
-        id: gather-base-tag
-        shell: bash
-        run: |
-          set -xeuo pipefail
-
-          # Identify machine configuration
-          REPO=${{ github.event.repository.name }}
-          CONFIG=${REPO##*-}
-          echo "CONFIG=$CONFIG" >> $GITHUB_ENV
-
-          # Get base tag from configuration
-          BASE_TAG="$(jq -r '.tag' .config/$CONFIG)"
-          if [ "$BASE_TAG" = "null" ]; then
-            BASE_TAG="stable-zfs"
-          fi
-          echo "BASE_TAG=$BASE_TAG" >> $GITHUB_OUTPUT
 
       - name: Generate image tags
         id: generate-image-tags
@@ -98,10 +80,49 @@ jobs:
             ${{ github.event.repository.name }}
           labels: |
             io.artifacthub.package.readme-url=https://raw.githubusercontent.com/cubt85iz/${{ github.event.repository.name }}/main/README.md
-            org.opencontainers.image.description=A ucore-derived image with ZFS and container quadlets
+            org.opencontainers.image.description=An image derived from Fedora CoreOS with configuration for pow.
             org.opencontainers.image.source="https://github.com/cubt85iz/${{ github.event.repository.name }}"
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.version=${{ env.MAJOR_VERSION }}.${{ env.DATE }}
+
+      - name: Gather arguments
+        id: gather-arguments
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          get-argument() {
+            var_value=$(jq -r ".arguments.$1 // empty" .config/pow)
+            if [ -n "$var_value" ]; then
+              echo "$var_value"
+            fi
+          }
+
+          # Gather arguments from configuration
+          CONFIG=$(get-argument CONFIG)
+          DEBUG=$(get-argument DEBUG)
+          KERNEL_FLAVOR=$(get-argument KERNEL_FLAVOR)
+          NVIDIA_TAG=$(get-argument NVIDIA_TAG)
+          ROOT=$(get-argument ROOT)
+
+          # Defaults for unspecified values.
+          DEBUG=${DEBUG:-false}
+          NVIDIA_TAG=${NVIDIA_TAG:-}
+          KERNEL_FLAVOR=${KERNEL_FLAVOR:-}
+          ROOT=${ROOT:-automatos-server}
+
+          # Exit with an error if CONFIG is unspecified
+          if [ -z "$CONFIG"]; then
+            echo "ERROR: Value for CONFIG must be provided."
+            exit 1
+          fi
+
+          # Add to environment variables
+          echo "CONFIG=$CONFIG" >> $GITHUB_ENV          
+          echo "DEBUG=$DEBUG" >> $GITHUB_ENV          
+          echo "KERNEL_FLAVOR=$KERNEL_FLAVOR" >> $GITHUB_ENV          
+          echo "NVIDIA_TAG=$NVIDIA_TAG" >> $GITHUB_ENV          
+          echo "ROOT=$ROOT" >> $GITHUB_ENV          
 
       - name: Build Image
         id: build_image
@@ -114,9 +135,11 @@ jobs:
           tags: |
             ${{ steps.generate-image-tags.outputs.alias_tags }}
           extra-args: |
-            --build-arg=BASE_TAG=${{ steps.gather-base-tag.outputs.BASE_TAG }}
             --build-arg=CONFIG=${{ env.CONFIG }}
-            --build-arg=ROOT=core
+            --build-arg=DEBUG=${{ env.DEBUG }}
+            --build-arg=KERNEL_FLAVOR=${{ env.KERNEL_FLAVOR }}
+            --build-arg=NVIDIA_TAG=${{ env.NVIDIA_TAG }}
+            --build-arg=ROOT=${{ env.ROOT }}
           labels: ${{ steps.define-image-metadata.outputs.labels }}
           oci: false
 

@@ -1,4 +1,10 @@
 {
+  "arguments": {
+    "CONFIG": "pow",
+    "DEBUG": "true",
+    "NVIDIA_TAG": "-nvidia",
+    "ROOT": "core"
+  },
   "containers": [
     "audiobookshelf",
     "beets",
@@ -60,6 +66,5 @@
         "value": "1"
       }
     ]
-  },
-  "tag": "stable-nvidia-zfs"
+  }
 }
