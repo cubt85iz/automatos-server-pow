@@ -8,6 +8,7 @@
   "containers": [
     "audiobookshelf",
     "beets",
+    "faster-whisper",
     "gotify",
     "immich",
     "immich-proxy",
