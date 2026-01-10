@@ -7,6 +7,7 @@
   },
   "containers": [
     "audiobookshelf",
+    "authelia",
     "beets",
     "faster-whisper",
     "gotify",
@@ -14,6 +15,7 @@
     "immich-proxy",
     "jellyfin",
     "kavita",
+    "lldap",
     "lubelogger",
     "mealie",
     "navidrome",
