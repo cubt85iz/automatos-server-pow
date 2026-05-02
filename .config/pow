@@ -48,7 +48,6 @@
     "just",
     "kernel-modules-extra",
     "nano",
-    "nvidia-container-toolkit",
     "pciutils",
     "podman",
     "rclone",
