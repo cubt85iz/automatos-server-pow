@@ -2,7 +2,7 @@
   "arguments": {
     "CONFIG": "pow",
     "DEBUG": "true",
-    "NVIDIA_TAG": "-nvidia",
+    "NVIDIA_TAG": "-nvidia-open",
     "ROOT": "core"
   },
   "containers": [
