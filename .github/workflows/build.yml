@@ -13,8 +13,36 @@ env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
 jobs:
+  get_latest_tag:
+    name: Get Latest Tag for Current Version
+    runs-on: ubuntu-latest
+    outputs:
+      coreos_version: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Fetch latest Fedora CoreOS tag for desired major version
+        id: tag
+        run: |
+          set -euxo pipefail
+
+          # Use skopeo to get a JSON object containing the tags for Fedora CoreOS.
+          # Use jq to get the contents of the Tags array and filter the list for
+          # the desired major version. Sort and get the final tag.
+          tag=$( \
+            skopeo list-tags docker://quay.io/fedora/fedora-coreos | \
+            jq -r '.Tags[]' | \
+            grep -P '^43(\.\d+){3}$' | \
+            sort -V | \
+            tail -n 1 \
+          )
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Echo outputs
+        run: |
+          echo "${{ toJSON(steps.tag.outputs) }}"
+
   fcos_version:
-    name: Get Fedora CoreOS Version
+    name: Get Stable Fedora CoreOS Version
     runs-on: ubuntu-latest
     outputs:
       stable_version: ${{ steps.stable.outputs.version }}
