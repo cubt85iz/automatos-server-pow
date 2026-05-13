@@ -13,8 +13,50 @@ env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
 jobs:
-  get_latest_tag:
-    name: Get Latest Tag for Current Version
+  gather_arguments:
+    name: Gather arguments from JSON configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gather arguments
+        id: gather-arguments
+        run: |
+          set -euxo pipefail
+
+          get-argument() {
+            var_value=$(jq -r ".arguments.$1 // empty" .config/pow)
+            if [ -n "$var_value" ]; then
+              echo "$var_value"
+            fi
+          }
+
+          # Gather arguments from configuration
+          CONFIG=$(get-argument CONFIG)
+          DEBUG=$(get-argument DEBUG)
+          KERNEL_FLAVOR=$(get-argument KERNEL_FLAVOR)
+          NVIDIA_TAG=$(get-argument NVIDIA_TAG)
+          ROOT=$(get-argument ROOT)
+
+          # Defaults for unspecified values.
+          DEBUG=${DEBUG:-false}
+          NVIDIA_TAG=${NVIDIA_TAG:-}
+          KERNEL_FLAVOR=${KERNEL_FLAVOR:-}
+          ROOT=${ROOT:-automatos-server}
+
+          # Exit with an error if CONFIG is unspecified
+          if [ -z "$CONFIG"]; then
+            echo "ERROR: Value for CONFIG must be provided."
+            exit 1
+          fi
+
+          # Add to environment variables
+          echo "CONFIG=$CONFIG" >> $GITHUB_ENV          
+          echo "DEBUG=$DEBUG" >> $GITHUB_ENV          
+          echo "KERNEL_FLAVOR=$KERNEL_FLAVOR" >> $GITHUB_ENV          
+          echo "NVIDIA_TAG=$NVIDIA_TAG" >> $GITHUB_ENV          
+          echo "ROOT=$ROOT" >> $GITHUB_ENV          
+  
+  fetch_latest_tag:
+    name: Fetch Latest Tag for Current Version
     runs-on: ubuntu-latest
     outputs:
       coreos_version: ${{ steps.tag.outputs.tag }}
@@ -41,13 +83,13 @@ jobs:
         run: |
           echo "${{ toJSON(steps.tag.outputs) }}"
 
-  fcos_version:
-    name: Get Stable Fedora CoreOS Version
+  fetch_stable_version:
+    name: Fetch version for Fedora CoreOS stable tag
     runs-on: ubuntu-latest
     outputs:
       stable_version: ${{ steps.stable.outputs.version }}
     steps:
-      - name: Fetch CoreOS stable versions
+      - name: Fetch version for Fedora CoreOS stable tag
         id: stable
         run: |
           set -xeuo pipefail
@@ -112,45 +154,6 @@ jobs:
             org.opencontainers.image.source="https://github.com/cubt85iz/${{ github.event.repository.name }}"
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.version=${{ env.MAJOR_VERSION }}.${{ env.DATE }}
-
-      - name: Gather arguments
-        id: gather-arguments
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          get-argument() {
-            var_value=$(jq -r ".arguments.$1 // empty" .config/pow)
-            if [ -n "$var_value" ]; then
-              echo "$var_value"
-            fi
-          }
-
-          # Gather arguments from configuration
-          CONFIG=$(get-argument CONFIG)
-          DEBUG=$(get-argument DEBUG)
-          KERNEL_FLAVOR=$(get-argument KERNEL_FLAVOR)
-          NVIDIA_TAG=$(get-argument NVIDIA_TAG)
-          ROOT=$(get-argument ROOT)
-
-          # Defaults for unspecified values.
-          DEBUG=${DEBUG:-false}
-          NVIDIA_TAG=${NVIDIA_TAG:-}
-          KERNEL_FLAVOR=${KERNEL_FLAVOR:-}
-          ROOT=${ROOT:-automatos-server}
-
-          # Exit with an error if CONFIG is unspecified
-          if [ -z "$CONFIG"]; then
-            echo "ERROR: Value for CONFIG must be provided."
-            exit 1
-          fi
-
-          # Add to environment variables
-          echo "CONFIG=$CONFIG" >> $GITHUB_ENV          
-          echo "DEBUG=$DEBUG" >> $GITHUB_ENV          
-          echo "KERNEL_FLAVOR=$KERNEL_FLAVOR" >> $GITHUB_ENV          
-          echo "NVIDIA_TAG=$NVIDIA_TAG" >> $GITHUB_ENV          
-          echo "ROOT=$ROOT" >> $GITHUB_ENV          
 
       - name: Build Image
         id: build_image
