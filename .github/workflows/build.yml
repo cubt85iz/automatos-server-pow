@@ -35,6 +35,7 @@ jobs:
           KERNEL_FLAVOR=$(get-argument KERNEL_FLAVOR)
           NVIDIA_TAG=$(get-argument NVIDIA_TAG)
           ROOT=$(get-argument ROOT)
+          UCORE_STREAM=$(get-argument UCORE_STREAM)
 
           # Defaults for unspecified values.
           DEBUG=${DEBUG:-false}
@@ -55,13 +56,13 @@ jobs:
           echo "NVIDIA_TAG=$NVIDIA_TAG" >> $GITHUB_ENV          
           echo "ROOT=$ROOT" >> $GITHUB_ENV          
   
-  fetch_latest_tag:
-    name: Fetch Latest Tag for Current Version
+  fetch_tag:
+    name: Fetch the latest tag for the current version
     runs-on: ubuntu-latest
     outputs:
       coreos_version: ${{ steps.tag.outputs.tag }}
     steps:
-      - name: Fetch latest Fedora CoreOS tag for desired major version
+      - name: Fetch the latest tag for the current version
         id: tag
         run: |
           set -euxo pipefail
@@ -83,7 +84,7 @@ jobs:
         run: |
           echo "${{ toJSON(steps.tag.outputs) }}"
 
-  fetch_stable_version:
+  fetch_version_for_stable_tag:
     name: Fetch version for Fedora CoreOS stable tag
     runs-on: ubuntu-latest
     outputs:
@@ -198,8 +199,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Sign container
-      - uses: sigstore/cosign-installer@v3.2.0
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.2.0
         if: github.event_name != 'pull_request'
 
       - name: Sign container image
@@ -210,8 +211,3 @@ jobs:
           TAGS: ${{ steps.push.outputs.digest }}
           COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-
-      - name: Echo outputs
-        #if: github.event_name != 'pull_request'
-        run: |
-          echo "${{ toJSON(steps.push.outputs) }}"
