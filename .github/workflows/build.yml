@@ -1,147 +1,137 @@
-name: build
+# Workflow: Build Fedora CoreOS for pow
+# Purpose: Automates the process of identifying the correct Fedora CoreOS version,
+#          comparing it against the 'stable' release, generating standardized
+#          image tags, preparing OCI-compliant metadata, and building the container.
+name: Build Fedora CoreOS for pow
+
 on:
-  schedule:
-    - cron: "30 00 * * 3"
   push:
     branches:
       - main
     paths-ignore:
       - "**.md"
+  schedule:
+    - cron: '0 15 * * 3'
   workflow_dispatch:
-
-env:
-  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+    inputs:
+      target_major:
+        description: 'Manual override for major version (e.g., 40).'
+        required: false
+        default: ''
 
 jobs:
-  gather_arguments:
-    name: Gather arguments from JSON configuration
-    runs-on: ubuntu-latest
-    steps:
-      - name: Gather arguments
-        id: gather-arguments
-        run: |
-          set -euxo pipefail
-
-          get-argument() {
-            var_value=$(jq -r ".arguments.$1 // empty" .config/pow)
-            if [ -n "$var_value" ]; then
-              echo "$var_value"
-            fi
-          }
-
-          # Gather arguments from configuration
-          CONFIG=$(get-argument CONFIG)
-          DEBUG=$(get-argument DEBUG)
-          KERNEL_FLAVOR=$(get-argument KERNEL_FLAVOR)
-          NVIDIA_TAG=$(get-argument NVIDIA_TAG)
-          ROOT=$(get-argument ROOT)
-          UCORE_STREAM=$(get-argument UCORE_STREAM)
-
-          # Defaults for unspecified values.
-          DEBUG=${DEBUG:-false}
-          NVIDIA_TAG=${NVIDIA_TAG:-}
-          KERNEL_FLAVOR=${KERNEL_FLAVOR:-}
-          ROOT=${ROOT:-automatos-server}
-
-          # Exit with an error if CONFIG is unspecified
-          if [ -z "$CONFIG"]; then
-            echo "ERROR: Value for CONFIG must be provided."
-            exit 1
-          fi
-
-          # Add to environment variables
-          echo "CONFIG=$CONFIG" >> $GITHUB_ENV          
-          echo "DEBUG=$DEBUG" >> $GITHUB_ENV          
-          echo "KERNEL_FLAVOR=$KERNEL_FLAVOR" >> $GITHUB_ENV          
-          echo "NVIDIA_TAG=$NVIDIA_TAG" >> $GITHUB_ENV          
-          echo "ROOT=$ROOT" >> $GITHUB_ENV          
-  
-  fetch_tag:
-    name: Fetch the latest tag for the current version
-    runs-on: ubuntu-latest
-    outputs:
-      coreos_version: ${{ steps.tag.outputs.tag }}
-    steps:
-      - name: Fetch the latest tag for the current version
-        id: tag
-        run: |
-          set -euxo pipefail
-
-          # Use skopeo to get a JSON object containing the tags for Fedora CoreOS.
-          # Use jq to get the contents of the Tags array and filter the list for
-          # the desired major version. Sort and get the final tag.
-          tag=$( \
-            skopeo list-tags docker://quay.io/fedora/fedora-coreos | \
-            jq -r '.Tags[]' | \
-            grep -P '^43(\.\d+){3}$' | \
-            sort -V | \
-            tail -n 1 \
-          )
-
-          echo "tag=$tag" >> $GITHUB_OUTPUT
-
-      - name: Echo outputs
-        run: |
-          echo "${{ toJSON(steps.tag.outputs) }}"
-
-  fetch_version_for_stable_tag:
-    name: Fetch version for Fedora CoreOS stable tag
-    runs-on: ubuntu-latest
-    outputs:
-      stable_version: ${{ steps.stable.outputs.version }}
-    steps:
-      - name: Fetch version for Fedora CoreOS stable tag
-        id: stable
-        run: |
-          set -xeuo pipefail
-
-          # Get version for container image
-          version=$(skopeo inspect docker://quay.io/fedora/fedora-coreos:stable | \
-            jq -r '.Labels["org.opencontainers.image.version"]')
-          echo "version=$version" >> $GITHUB_OUTPUT
-
-      - name: Echo outputs
-        run: |
-          echo "${{ toJSON(steps.stable.outputs) }}"
-
   build:
-    name: Build and push image
-    runs-on: ubuntu-24.04
-    if: always() && !cancelled()
-    needs: [fcos_version]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
     steps:
-      - name: Checkout Push to Registry action
+      - name: Checkout code
+        id: checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Generate image tags
-        id: generate-image-tags
-        shell: bash
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Log into Github Container Registry
+        id: log-into-ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load Config
+        id: load-config
         run: |
-          set -xeuo pipefail
+          set -euxo pipefail
 
-          # Get current date for tags
-          TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-          DATE="$(echo ${TIMESTAMP} | cut -d '-' -f 1)"
-          echo "DATE=$DATE" >> $GITHUB_ENV
-
-          # Get major version for container image
-          MAJOR_VERSION="$(echo ${{ needs.fcos_version.outputs.stable_version }} | cut -d '.' -f 1)"
-          echo "MAJOR_VERSION=$MAJOR_VERSION" >> $GITHUB_ENV
-
-          # Define tags for container image
-          BRANCH="${{ github.ref_name }}"
-          if [ "$BRANCH" = "main" ]; then
-            BUILD_TAGS=( "latest" "${BRANCH}" "${TIMESTAMP}" "${MAJOR_VERSION}" "${MAJOR_VERSION}.${DATE}")
+          CONFIG_FILE=".config/pow"
+          if [ -f "$CONFIG_FILE" ]; then
+            # 1. Map keys to GITHUB_ENV for general use (e.g. $FEDORA_VERSION)
+            jq -r '.arguments | to_entries[] | "\(.key)=\(.value)"' "$CONFIG_FILE" >> $GITHUB_ENV
+            
+            # 2. Generate a formatted string of --build-arg K=V for the docker build step
+            # This allows us to pass all dynamic arguments at once.
+            BUILD_ARGS=$(jq -r '.arguments | to_entries[] | "--build-arg \(.key)=\(.value)"' "$CONFIG_FILE" | xargs)
+            echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+            
+            echo "Config loaded from $CONFIG_FILE"
           else
-            BUILD_TAGS=( "${BRANCH}" "${TIMESTAMP}" "${MAJOR_VERSION}.${DATE}")
+            echo "Error: $CONFIG_FILE not found."
+            exit 1
           fi
-          echo "alias_tags=${BUILD_TAGS[*]}" >> $GITHUB_OUTPUT
+
+      - name: Get Versions
+        id: get-versions
+        run: |
+          set -euxo pipefail
+
+          REPO="quay.io/fedora/fedora-coreos"
+          ALL_TAGS=$(skopeo list-tags $REPO | jq -r '.Tags[]')
+          
+          if [ -n "${{ github.event.inputs.target_major }}" ]; then
+            TARGET_MAJOR="${{ github.event.inputs.target_major }}"
+          elif [ -n "$FEDORA_VERSION" ]; then
+            TARGET_MAJOR="$FEDORA_VERSION"
+          else
+            echo "Error: No major version specified."
+            exit 1
+          fi
+          
+          TARGET_TAG=$(echo "$ALL_TAGS" | grep -E "^$TARGET_MAJOR\." | sort -V | tail -n 1)
+          
+          if [ -z "$TARGET_TAG" ]; then
+            echo "Error: Could not find tag for major version $TARGET_MAJOR"
+            exit 1
+          fi
+          
+          echo "target_tag=$TARGET_TAG" >> $GITHUB_OUTPUT
+
+      - name: Check Stable Version
+        id: check-stable
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+
+          STABLE_REPO="quay.io/fedora/fedora-coreos:stable"
+          STABLE_VERSION=$(skopeo inspect $STABLE_REPO | jq -r '.Labels["org.opencontainers.image.version"] // empty')
+          
+          if [[ ! $STABLE_VERSION =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+            echo "Error: Could not find valid version in 'org.opencontainers.image.version' label. Found: '$STABLE_VERSION'"
+            exit 1
+          fi
+          
+          STABLE_MAJOR=$(echo "$STABLE_VERSION" | cut -d. -f1)
+          
+          if [ "$STABLE_MAJOR" -gt "$FEDORA_VERSION" ]; then
+            echo "::warning:: The 'stable' image ($STABLE_VERSION) is newer than the configured FEDORA_VERSION ($FEDORA_VERSION)!"
+            exit 1
+          fi
+
+      - name: Generate Image Tags
+        id: generate-tags
+        run: |
+          set -euxo pipefail
+
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          BRANCH_NAME="${{ github.ref_name }}"
+          TAGS=()
+          if [ "$BRANCH_NAME" = "main" ]; then
+            TAGS+=("latest")
+          else
+            TAGS+=("$BRANCH_NAME")
+          fi
+          TAGS+=("$FEDORA_VERSION.$TIMESTAMP")
+          TAGS+=("$FEDORA_VERSION")
+          TAG_STRING="${TAGS[*]}"
+
+          echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+          echo "IMAGE_TAGS=$TAG_STRING" >> $GITHUB_ENV
+          echo "Generated Tags: $TAG_STRING"
 
       - name: Define Image Metadata
         id: define-image-metadata
@@ -150,14 +140,15 @@ jobs:
           images: |
             ${{ github.event.repository.name }}
           labels: |
-            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/cubt85iz/${{ github.event.repository.name }}/main/README.md
-            org.opencontainers.image.description=An image derived from Fedora CoreOS with configuration for pow.
-            org.opencontainers.image.source="https://github.com/cubt85iz/${{ github.event.repository.name }}"
-            org.opencontainers.image.title=${{ github.event.repository.name }}
-            org.opencontainers.image.version=${{ env.MAJOR_VERSION }}.${{ env.DATE }}
+            io.artifacthub.package.readme-url="https://${{ github.repository }}/blob/${{ github.ref_name }}/README.md"
+            org.opencontainers.image.description="An image derived from Fedora CoreOS ${{ env.FEDORA_VERSION }} for the ${{ github.event.repository.name }} project"
+            org.opencontainers.image.source="https://github.com/${{ github.repository }}"
+            org.opencontainers.image.title="${{ github.event.repository.name }}"
+            org.opencontainers.image.version="${{ env.FEDORA_VERSION }}.${{ env.TIMESTAMP }}"
+
 
       - name: Build Image
-        id: build_image
+        id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
           containerfiles: |
@@ -165,49 +156,38 @@ jobs:
           context: .
           image: ${{ github.event.repository.name }}
           tags: |
-            ${{ steps.generate-image-tags.outputs.alias_tags }}
+            ${{ env.IMAGE_TAGS }}
           extra-args: |
-            --build-arg=CONFIG=${{ env.CONFIG }}
-            --build-arg=DEBUG=${{ env.DEBUG }}
-            --build-arg=KERNEL_FLAVOR=${{ env.KERNEL_FLAVOR }}
-            --build-arg=NVIDIA_TAG=${{ env.NVIDIA_TAG }}
-            --build-arg=ROOT=${{ env.ROOT }}
+            ${{ env.BUILD_ARGS }}
           labels: ${{ steps.define-image-metadata.outputs.labels }}
           oci: false
 
-      # Push the image to GHCR (Image Registry)
-      - name: Push To GHCR
+      - name: Push to Registry
+        id: push-to-registry
         uses: redhat-actions/push-to-registry@v2
-        id: push
-        env:
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_PASSWORD: ${{ github.token }}
         with:
-          image: ${{ steps.build_image.outputs.image }}
-          tags: ${{ steps.build_image.outputs.tags }}
-          registry: ${{ env.IMAGE_REGISTRY }}
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASSWORD }}
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ghcr.io/${{ github.repository_owner }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
           extra-args: |
             --disable-content-trust
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.2.0
-        if: github.event_name != 'pull_request'
-
-      - name: Sign container image
-        if: github.event_name != 'pull_request'
+      - name: Sign image
+        id: sign-image
         run: |
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}@${TAGS}
-        env:
-          TAGS: ${{ steps.push.outputs.digest }}
-          COSIGN_EXPERIMENTAL: false
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          set -euxo pipefail
+
+          # Sign the image digest.
+          cosign sign --yes ${{ steps.build-image.outputs.image }}@${{ steps.build-image.outputs.digest }}
+
+      - name: Verify Environment and Outputs
+        id: verify-env
+        run: |
+          set -euxo pipefail
+
+          echo "Target Tag: ${{ steps.get-versions.outputs.target_tag }}"
+          echo "FEDORA_VERSION: $FEDORA_VERSION"
+          echo "IMAGE_TAGS: $IMAGE_TAGS"
+          echo "Build Args Used: $BUILD_ARGS"
