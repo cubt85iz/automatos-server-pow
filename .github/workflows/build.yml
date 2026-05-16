@@ -181,7 +181,7 @@ jobs:
           set -euxo pipefail
 
           # Sign the image digest.
-          cosign sign --yes ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}@${{ steps.build-push-image.outputs.digest }}
+          cosign sign --yes ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}@${{ steps.push-to-registry.outputs.digest }}
 
       - name: Verify Environment and Outputs
         id: verify-env
