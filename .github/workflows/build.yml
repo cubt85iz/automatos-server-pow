@@ -181,7 +181,7 @@ jobs:
           set -euxo pipefail
 
           # Sign the image digest.
-          cosign sign --yes ${{ steps.build-image.outputs.image }}@${{ steps.build-image.outputs.digest }}
+          cosign sign --yes ${{ steps.build-image.outputs.image }}@${{ steps.push-to-registry.outputs.digest }}
 
       - name: Verify Environment and Outputs
         id: verify-env
