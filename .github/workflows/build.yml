@@ -71,7 +71,7 @@ jobs:
           set -euxo pipefail
 
           REPO="quay.io/fedora/fedora-coreos"
-          ALL_TAGS=$(skopeo list-tags $REPO | jq -r '.Tags[]')
+          ALL_TAGS=$(skopeo list-tags docker://$REPO | jq -r '.Tags[]')
           
           if [ -n "${{ github.event.inputs.target_major }}" ]; then
             TARGET_MAJOR="${{ github.event.inputs.target_major }}"
@@ -98,7 +98,7 @@ jobs:
           set -euxo pipefail
 
           STABLE_REPO="quay.io/fedora/fedora-coreos:stable"
-          STABLE_VERSION=$(skopeo inspect $STABLE_REPO | jq -r '.Labels["org.opencontainers.image.version"] // empty')
+          STABLE_VERSION=$(skopeo inspect docker://$STABLE_REPO | jq -r '.Labels["org.opencontainers.image.version"] // empty')
           
           if [[ ! $STABLE_VERSION =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
             echo "Error: Could not find valid version in 'org.opencontainers.image.version' label. Found: '$STABLE_VERSION'"
