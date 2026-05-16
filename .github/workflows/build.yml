@@ -159,6 +159,7 @@ jobs:
             ${{ env.IMAGE_TAGS }}
           extra-args: |
             ${{ env.BUILD_ARGS }}
+            --build-arg COREOS_VERSION=${{ steps.get-versions.outputs.target_tag }}
           labels: ${{ steps.define-image-metadata.outputs.labels }}
           oci: false
 
