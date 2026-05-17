@@ -182,13 +182,3 @@ jobs:
 
           # Sign the image digest.
           cosign sign --yes ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}@${{ steps.push-to-registry.outputs.digest }}
-
-      - name: Verify Environment and Outputs
-        id: verify-env
-        run: |
-          set -euxo pipefail
-
-          echo "Target Tag: ${{ steps.get-versions.outputs.target_tag }}"
-          echo "FEDORA_VERSION: $FEDORA_VERSION"
-          echo "IMAGE_TAGS: $IMAGE_TAGS"
-          echo "Build Args Used: $BUILD_ARGS"
