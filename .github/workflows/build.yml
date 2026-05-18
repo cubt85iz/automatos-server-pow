@@ -120,11 +120,13 @@ jobs:
           TAGS=()
           if [ "$BRANCH_NAME" = "main" ]; then
             TAGS+=("latest")
+            TAGS+=("$FEDORA_VERSION.$TIMESTAMP")
+            TAGS+=("$FEDORA_VERSION")
           else
             TAGS+=("$BRANCH_NAME")
+            TAGS+=("$BRANCH_NAME-$FEDORA_VERSION.$TIMESTAMP")
+            TAGS+=("$BRANCH_NAME-$FEDORA_VERSION")
           fi
-          TAGS+=("$FEDORA_VERSION.$TIMESTAMP")
-          TAGS+=("$FEDORA_VERSION")
           TAG_STRING="${TAGS[*]}"
 
           echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
