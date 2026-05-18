@@ -6,8 +6,6 @@ name: Build Fedora CoreOS for pow
 
 on:
   push:
-    branches:
-      - main
     paths-ignore:
       - "**.md"
   schedule:
@@ -53,12 +51,12 @@ jobs:
           if [ -f "$CONFIG_FILE" ]; then
             # 1. Map keys to GITHUB_ENV for general use (e.g. $FEDORA_VERSION)
             jq -r '.arguments | to_entries[] | "\(.key)=\(.value)"' "$CONFIG_FILE" >> $GITHUB_ENV
-            
+
             # 2. Generate a formatted string of --build-arg K=V for the docker build step
             # This allows us to pass all dynamic arguments at once.
             BUILD_ARGS=$(jq -r '.arguments | to_entries[] | "--build-arg \(.key)=\(.value)"' "$CONFIG_FILE" | xargs)
             echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
-            
+
             echo "Config loaded from $CONFIG_FILE"
           else
             echo "Error: $CONFIG_FILE not found."
@@ -72,7 +70,7 @@ jobs:
 
           REPO="quay.io/fedora/fedora-coreos"
           ALL_TAGS=$(skopeo list-tags docker://$REPO | jq -r '.Tags[]')
-          
+
           if [ -n "${{ github.event.inputs.target_major }}" ]; then
             TARGET_MAJOR="${{ github.event.inputs.target_major }}"
           elif [ -n "$FEDORA_VERSION" ]; then
@@ -81,14 +79,14 @@ jobs:
             echo "Error: No major version specified."
             exit 1
           fi
-          
+
           TARGET_TAG=$(echo "$ALL_TAGS" | grep -E "^$TARGET_MAJOR\." | sort -V | tail -n 1)
-          
+
           if [ -z "$TARGET_TAG" ]; then
             echo "Error: Could not find tag for major version $TARGET_MAJOR"
             exit 1
           fi
-          
+
           echo "target_tag=$TARGET_TAG" >> $GITHUB_OUTPUT
 
       - name: Check Stable Version
@@ -99,14 +97,14 @@ jobs:
 
           STABLE_REPO="quay.io/fedora/fedora-coreos:stable"
           STABLE_VERSION=$(skopeo inspect docker://$STABLE_REPO | jq -r '.Labels["org.opencontainers.image.version"] // empty')
-          
+
           if [[ ! $STABLE_VERSION =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
             echo "Error: Could not find valid version in 'org.opencontainers.image.version' label. Found: '$STABLE_VERSION'"
             exit 1
           fi
-          
+
           STABLE_MAJOR=$(echo "$STABLE_VERSION" | cut -d. -f1)
-          
+
           if [ "$STABLE_MAJOR" -gt "$FEDORA_VERSION" ]; then
             echo "::warning:: The 'stable' image ($STABLE_VERSION) is newer than the configured FEDORA_VERSION ($FEDORA_VERSION)!"
             exit 1
