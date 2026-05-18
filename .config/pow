@@ -49,6 +49,7 @@
     "just",
     "kernel-modules-extra",
     "nano",
+    "nfs-utils",
     "pciutils",
     "podman",
     "rclone",
