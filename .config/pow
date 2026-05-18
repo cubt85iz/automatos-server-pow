@@ -2,7 +2,7 @@
   "arguments": {
     "CONFIG": "pow",
     "DEBUG": "true",
-    "FEDORA_VERSION": "43",
+    "FEDORA_VERSION": "44",
     "NVIDIA_TAG": "-nvidia-open",
     "ROOT": "core"
   },
