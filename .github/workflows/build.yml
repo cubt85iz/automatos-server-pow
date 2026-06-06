@@ -9,7 +9,7 @@ on:
     paths-ignore:
       - "**.md"
   schedule:
-    - cron: '0 15 * * 3'
+    - cron: '15 15 * * 3'
   workflow_dispatch:
     inputs:
       target_major:
