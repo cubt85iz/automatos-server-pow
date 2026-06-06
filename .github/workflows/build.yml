@@ -30,7 +30,9 @@ jobs:
       - name: Gather enabled images
         id: gather
         run: |
-          echo "images=$(jq -c '[.images[] | select(.enabled == true)]' .config/pow)" >> $GITHUB_OUTPUT
+          IMAGES=$(jq -c '[.images[] | select(.enabled == true)]' .config/pow)"
+          echo "images=$IMAGES" >> $GITHUB_OUTPUT
+          echo "Generated Matrix: $IMAGES"
 
   build:
     needs: configure
