@@ -18,6 +18,20 @@ on:
         default: ''
 
 jobs:
+  configure:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.gather.outputs.images }}
+    steps:
+      - name: Checkout code
+        id: checkout
+        uses: actions/checkout@v6
+
+      - name: Gather enabled images
+        id: gather
+        run: |
+          echo "images=$(jq -c '[.images[] | select(.enabled == true)]' .config/pow)" >> $GITHUB_OUTPUT
+
   build:
     runs-on: ubuntu-latest
     permissions:
