@@ -33,7 +33,10 @@ jobs:
           echo "images=$(jq -c '[.images[] | select(.enabled == true)]' .config/pow)" >> $GITHUB_OUTPUT
 
   build:
+    needs: configure
     runs-on: ubuntu-latest
+    strategy:
+     matrix: ${{ fromJson(needs.configure.outputs.images) }}
     permissions:
       contents: read
       packages: write
