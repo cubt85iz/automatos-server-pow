@@ -38,7 +38,8 @@ jobs:
     needs: configure
     runs-on: ubuntu-latest
     strategy:
-     matrix: ${{ fromJson(needs.configure.outputs.images) }}
+     matrix: 
+       include: ${{ fromJson(needs.configure.outputs.images) }}
     permissions:
       contents: read
       packages: write
