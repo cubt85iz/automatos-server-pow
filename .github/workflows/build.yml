@@ -89,7 +89,6 @@ jobs:
 
           # Debug: Print the config name being used
           echo "Config loaded for matrix profile: ${{ matrix.name }}"
-          echo "Fedora Version: $FEDORA_VERSION"
 
       - name: Get Versions
         id: get-versions
