@@ -37,6 +37,7 @@ jobs:
   build:
     needs: configure
     runs-on: ubuntu-latest
+    name: Build ${{ matrix.name }}
     strategy:
      matrix: 
        include: ${{ fromJson(needs.configure.outputs.images) }}
@@ -62,26 +63,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load Config
+      - name: Load Config from Matrix
         id: load-config
         run: |
           set -euxo pipefail
 
-          CONFIG_FILE=".config/pow"
-          if [ -f "$CONFIG_FILE" ]; then
-            # 1. Map keys to GITHUB_ENV for general use (e.g. $FEDORA_VERSION)
-            jq -r '.arguments | to_entries[] | "\(.key)=\(.value)"' "$CONFIG_FILE" >> $GITHUB_ENV
+          # 1. Access matrix properties directly. 
+          # Note: In shell scripts, we access them via environment variables 
+          # which GitHub automatically creates from the matrix context.
+          
+          # The 'arguments' object from your JSON is available as a JSON string in the env
+          # We can parse it or access specific keys if they were flattened.
+          # However, since your JSON has nested 'arguments', we extract them here.
+          
+          # Option A: If you want to flatten 'arguments' into individual ENV vars (e.g., FEDORA_VERSION)
+          # We use jq on the matrix JSON string provided by GitHub
+          ARGS_JSON='${{ toJSON(matrix.arguments) }}'
+          
+          # Map keys to GITHUB_ENV
+          echo "$ARGS_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
 
-            # 2. Generate a formatted string of --build-arg K=V for the docker build step
-            # This allows us to pass all dynamic arguments at once.
-            BUILD_ARGS=$(jq -r '.arguments | to_entries[] | "--build-arg \(.key)=\(.value)"' "$CONFIG_FILE" | xargs)
-            echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+          # Option B: Generate the --build-arg string directly from the matrix variable
+          BUILD_ARGS=$(echo "$ARGS_JSON" | jq -r 'to_entries[] | "--build-arg \(.key)=\(.value)"' | xargs)
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
-            echo "Config loaded from $CONFIG_FILE"
-          else
-            echo "Error: $CONFIG_FILE not found."
-            exit 1
-          fi
+          # Debug: Print the config name being used
+          echo "Config loaded for matrix profile: ${{ matrix.name }}"
+          echo "Fedora Version: $FEDORA_VERSION"
 
       - name: Get Versions
         id: get-versions
