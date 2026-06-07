@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "System Configuration Schema",
+  "description": "Defines the configuration for system images, including containers, packages, and SELinux settings.",
+  "type": "object",
+  "required": ["images"],
+  "properties": {
+    "images": {
+      "type": "array",
+      "description": "A list of system image configurations.",
+      "items": {
+        "type": "object",
+        "required": ["name", "enabled", "arguments"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique identifier for the image configuration (e.g., 'latest', 'legacy')."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Indicates whether this image configuration is active."
+          },
+          "arguments": {
+            "type": "object",
+            "description": "Key-value pairs for build or runtime arguments.",
+            "required": ["FEDORA_VERSION"],
+            "properties": {
+              "FEDORA_VERSION": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The version of Fedora to use for the base image."
+              }
+            },
+            "additionalProperties": {
+              "type": "string",
+              "description": "Additional custom arguments."
+            }
+          },
+          "containers": {
+            "type": "array",
+            "description": "List of container names to include in the image.",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of a specific container."
+            }
+          },
+          "packages": {
+            "type": "array",
+            "description": "List of software packages to install. Can be package names or URLs to RPM files.",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of a package or a URL to an RPM file."
+            }
+          },
+          "repos": {
+            "type": "array",
+            "description": "List of additional repositories to enable.",
+            "items": {
+              "type": "string",
+              "description": "Repository identifier or URL."
+            }
+          },
+          "selinux": {
+            "type": "object",
+            "description": "SELinux specific configuration settings.",
+            "properties": {
+              "booleans": {
+                "type": "array",
+                "description": "List of SELinux booleans to configure.",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "value"],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Name of the SELinux boolean."
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Value to set for the boolean ('1' for on, '0' for off)."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}   
