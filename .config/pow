@@ -42,7 +42,7 @@
       ],
       "packages": [
         "borgbackup",
-        "https://github.com/twpayne/chezmoi/releases/download/v2.58.0/chezmoi-2.58.0-x86_64.rpm",
+        "https://github.com/twpayne/chezmoi/releases/download/v2.70.5/chezmoi-2.70.5-x86_64.rpm",
         "curl",
         "firewalld",
         "just",
