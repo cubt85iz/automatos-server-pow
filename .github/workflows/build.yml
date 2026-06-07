@@ -148,17 +148,21 @@ jobs:
           STABLE_VERSION="${{ env.STABLE_VERSION }}"
           TAGS=()
           if [ "$BRANCH_NAME" = "main" ]; then
+
+            # Assign rolling tags based on relation to latest stable
+            # version of Fedora CoreOS.
             if [ "$STABLE_VERSION" -eq "$FEDORA_VERSION" ]; then
-              TAGS+=("latest")
+              TAGS+=("stable")
             elif [ "$STABLE_VERSION" -gt "$FEDORA_VERSION" ]; then
               TAGS+=("legacy")
             else
-              TAGS+=("experimental")
+              TAGS+=("next")
             fi
             
             TAGS+=("$FEDORA_VERSION.$TIMESTAMP")
             TAGS+=("$FEDORA_VERSION")
           else
+            # Prepend branch name for builds from branches != main 
             TAGS+=("$BRANCH_NAME")
             TAGS+=("$BRANCH_NAME-$FEDORA_VERSION.$TIMESTAMP")
             TAGS+=("$BRANCH_NAME-$FEDORA_VERSION")
@@ -181,7 +185,6 @@ jobs:
             org.opencontainers.image.source="https://github.com/${{ github.repository }}"
             org.opencontainers.image.title="${{ github.event.repository.name }}"
             org.opencontainers.image.version="${{ env.FEDORA_VERSION }}.${{ env.TIMESTAMP }}"
-
 
       - name: Build Image
         id: build-image
