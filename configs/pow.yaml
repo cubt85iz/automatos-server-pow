@@ -1,0 +1,82 @@
+{
+  "images": [
+    {
+      "name": "automatos-server-pow-44",
+      "image": "automatos-server-pow",
+      "base-image": "",
+      "version": "44",
+      "enabled": true,
+      "arguments": {
+        "NVIDIA_TAG": "-nvidia-open"
+      },
+      "packages": [
+        "borgbackup",
+        "https://github.com/twpayne/chezmoi/releases/download/v2.70.5/chezmoi-2.70.5-x86_64.rpm",
+        "curl",
+        "firewalld",
+        "just",
+        "kernel-modules-extra",
+        "nano",
+        "nfs-utils",
+        "pciutils",
+        "podman",
+        "rclone",
+        "samba",
+        "tree",
+        "wireguard-tools"
+      ],
+      "selinux":
+      {
+        "booleans": [
+          {
+            "name": "rsync_full_access",
+            "value": "1"
+          },
+          {
+            "name": "samba_export_all_rw",
+            "value": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "automatos-server-pow-43",
+      "image": "automatos-server-pow",
+      "base-image": "",
+      "version": "43",
+      "enabled": false,
+      "arguments": {
+        "NVIDIA_TAG": "-nvidia-open"
+      },
+      "packages": [
+        "borgbackup",
+        "https://github.com/twpayne/chezmoi/releases/download/v2.58.0/chezmoi-2.58.0-x86_64.rpm",
+        "curl",
+        "firewalld",
+        "just",
+        "kernel-modules-extra",
+        "nano",
+        "nfs-utils",
+        "pciutils",
+        "podman",
+        "rclone",
+        "samba",
+        "tree",
+        "wireguard-tools"
+      ],
+      "selinux":
+      {
+        "booleans": [
+          {
+            "name": "rsync_full_access",
+            "value": "1"
+          },
+          {
+            "name": "samba_export_all_rw",
+            "value": "1"
+          }
+        ]
+      }
+    }
+  ]
+}
