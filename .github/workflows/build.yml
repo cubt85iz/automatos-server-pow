@@ -131,6 +131,7 @@ jobs:
           fi
 
           STABLE_MAJOR=$(echo "$STABLE_VERSION" | cut -d. -f1)
+          echo "STABLE_VERSION=$STABLE_VERSION" >> $GITHUB_ENV
 
           if [ "$STABLE_MAJOR" -gt "$FEDORA_VERSION" ]; then
             echo "::warning:: The 'stable' image ($STABLE_VERSION) is newer than the configured FEDORA_VERSION ($FEDORA_VERSION)!"
@@ -144,9 +145,17 @@ jobs:
 
           TIMESTAMP=$(date +%Y%m%d%H%M)
           BRANCH_NAME="${{ github.ref_name }}"
+          STABLE_VERSION="${{ env.STABLE_VERSION }}"
           TAGS=()
           if [ "$BRANCH_NAME" = "main" ]; then
-            TAGS+=("latest")
+            if [ "$STABLE_VERSION" -eq "$FEDORA_VERSION" ]; then
+              TAGS+=("latest")
+            elif [ "$STABLE_VERSION" -eq "$FEDORA_VERSION" ]; then
+              TAGS+=("legacy")
+            else
+              TAGS+=("experimental")
+            fi
+            
             TAGS+=("$FEDORA_VERSION.$TIMESTAMP")
             TAGS+=("$FEDORA_VERSION")
           else
