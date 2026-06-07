@@ -150,7 +150,7 @@ jobs:
           if [ "$BRANCH_NAME" = "main" ]; then
             if [ "$STABLE_VERSION" -eq "$FEDORA_VERSION" ]; then
               TAGS+=("latest")
-            elif [ "$STABLE_VERSION" -eq "$FEDORA_VERSION" ]; then
+            elif [ "$STABLE_VERSION" -gt "$FEDORA_VERSION" ]; then
               TAGS+=("legacy")
             else
               TAGS+=("experimental")
