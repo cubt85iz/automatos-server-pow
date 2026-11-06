@@ -1,0 +1,209 @@
+# Workflow: Build Fedora CoreOS Images for pow
+# Purpose: Dynamically discovers configurations in .config/, creates a build matrix,
+#          compares Fedora versions against 'stable', generates unique image tags,
+#          and builds/signs the containers.
+name: Build Fedora CoreOS
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+  schedule:
+    - cron: '15 15 * * 3'
+  workflow_dispatch:
+    inputs:
+      target_major:
+        description: 'Manual override for major version (e.g., 40).'
+        required: false
+        default: ''
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      configs: ${{ steps.set-matrix.outputs.configs }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Discover Configurations
+        id: set-matrix
+        run: |
+          set -euxo pipefail
+          # Find all files in .config directory and format as a JSON array
+          CONFIGS=$(find .config -maxdepth 1 -type f -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
+          echo "configs=$CONFIGS" >> $GITHUB_OUTPUT
+          echo "Detected configs: $CONFIGS"
+
+  build:
+    needs: detect
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.detect.outputs.configs) }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        id: checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Log into Github Container Registry
+        id: log-into-ghcr
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load Config
+        id: load-config
+        run: |
+          set -euxo pipefail
+
+          CONFIG_FILE=".config/${{ matrix.config }}"
+          if [ -f "$CONFIG_FILE" ]; then
+            # 1. Map keys to GITHUB_ENV for general use (e.g. $FEDORA_VERSION)
+            jq -r '.arguments | to_entries[] | "\(.key)=\(.value)"' "$CONFIG_FILE" >> $GITHUB_ENV
+
+            # 2. Generate a formatted string of --build-arg K=V for the docker build step
+            BUILD_ARGS=$(jq -r '.arguments | to_entries[] | "--build-arg \(.key)=\(.value)"' "$CONFIG_FILE" | xargs)
+            echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+
+            echo "Config loaded from $CONFIG_FILE"
+          else
+            echo "Error: $CONFIG_FILE not found."
+            exit 1
+          fi
+
+      - name: Get Versions
+        id: get-versions
+        run: |
+          set -euxo pipefail
+
+          REPO="quay.io/fedora/fedora-coreos"
+          ALL_TAGS=$(skopeo list-tags docker://$REPO | jq -r '.Tags[]')
+
+          if [ -n "${{ github.event.inputs.target_major }}" ]; then
+            TARGET_MAJOR="${{ github.event.inputs.target_major }}"
+          elif [ -n "$FEDORA_VERSION" ]; then
+            TARGET_MAJOR="$FEDORA_VERSION"
+          else
+            echo "Error: No major version specified."
+            exit 1
+          fi
+
+          TARGET_TAG=$(echo "$ALL_TAGS" | grep -E "^$TARGET_MAJOR\." | sort -V | tail -n 1)
+
+          if [ -z "$TARGET_TAG" ]; then
+            echo "Error: Could not find tag for major version $TARGET_MAJOR"
+            exit 1
+          fi
+
+          echo "target_tag=$TARGET_TAG" >> $GITHUB_OUTPUT
+
+      - name: Check Stable Version
+        id: check-stable
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+
+          STABLE_REPO="quay.io/fedora/fedora-coreos:stable"
+          STABLE_VERSION=$(skopeo inspect docker://$STABLE_REPO | jq -r '.Labels["org.opencontainers.image.version"] // empty')
+
+          if [[ ! $STABLE_VERSION =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+            echo "Error: Could not find valid version in 'org.opencontainers.image.version' label. Found: '$STABLE_VERSION'"
+            exit 1
+          fi
+
+          STABLE_MAJOR=$(echo "$STABLE_VERSION" | cut -d. -f1)
+
+          if [ "$STABLE_MAJOR" -gt "$FEDORA_VERSION" ]; then
+            echo "::warning:: The 'stable' image ($STABLE_VERSION) is newer than the configured FEDORA_VERSION ($FEDORA_VERSION)!"
+            exit 1
+          fi
+
+      - name: Generate Image Tags
+        id: generate-tags
+        run: |
+          set -euxo pipefail
+
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          BRANCH_NAME="${{ github.ref_name }}"
+          CONFIG_NAME="${{ matrix.config }}"
+          TAGS=()
+          
+          # Include configuration name in tags to prevent multi-config tag collisions
+          if [ "$BRANCH_NAME" = "main" ]; then
+            TAGS+=("$CONFIG_NAME-latest")
+            TAGS+=("$CONFIG_NAME-$FEDORA_VERSION.$TIMESTAMP")
+            TAGS+=("$CONFIG_NAME-$FEDORA_VERSION")
+          else
+            TAGS+=("$BRANCH_NAME-$CONFIG_NAME")
+            TAGS+=("$BRANCH_NAME-$CONFIG_NAME-$FEDORA_VERSION.$TIMESTAMP")
+            TAGS+=("$BRANCH_NAME-$CONFIG_NAME-$FEDORA_VERSION")
+          fi
+          TAG_STRING="${TAGS[*]}"
+
+          echo "TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+          echo "IMAGE_TAGS=$TAG_STRING" >> $GITHUB_ENV
+          echo "Generated Tags: $TAG_STRING"
+
+      - name: Define Image Metadata
+        id: define-image-metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            ${{ github.event.repository.name }}
+          labels: |
+            io.artifacthub.package.readme-url="https://${{ github.repository }}/blob/${{ github.ref_name }}/README.md"
+            org.opencontainers.image.description="An image derived from Fedora CoreOS ${{ env.FEDORA_VERSION }} for the ${{ github.event.repository.name }} project (${{ matrix.config }})"
+            org.opencontainers.image.source="https://github.com/${{ github.repository }}"
+            org.opencontainers.image.title="${{ github.event.repository.name }}-${{ matrix.config }}"
+            org.opencontainers.image.version="${{ env.FEDORA_VERSION }}.${{ env.TIMESTAMP }}"
+
+      - name: Build Image
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: |
+            ./core/Containerfile
+          context: .
+          image: ${{ github.event.repository.name }}
+          tags: |
+            ${{ env.IMAGE_TAGS }}
+          extra-args: |
+            ${{ env.BUILD_ARGS }}
+            --build-arg COREOS_VERSION=${{ steps.get-versions.outputs.target_tag }}
+          labels: ${{ steps.define-image-metadata.outputs.labels }}
+          oci: false
+
+      - name: Push to Registry
+        id: push-to-registry
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ghcr.io/${{ github.repository_owner }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Sign image
+        id: sign-image
+        run: |
+          set -euxo pipefail
+
+          # Sign the image digest.
+          cosign sign --yes ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}@${{ steps.push-to-registry.outputs.digest }}
