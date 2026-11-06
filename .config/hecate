@@ -1,0 +1,27 @@
+{
+  "arguments": {
+    "CONFIG": "hecate",
+    "DEBUG": "false",
+    "FEDORA_VERSION": "44",
+    "ROOT": "core"
+  },
+  "containers": [
+    "authelia",
+    "authelia-redis",
+    "lldap"
+  ],
+  "packages": [
+    "borgbackup",
+    "https://github.com/twpayne/chezmoi/releases/download/v2.58.0/chezmoi-2.58.0-x86_64.rpm",
+    "firewalld",
+    "just",
+    "pciutils",
+    "rclone",
+    "tree"
+  ],
+  "repos": [],
+  "selinux":
+  {
+    "booleans": []
+  }
+}
