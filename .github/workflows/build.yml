@@ -32,10 +32,29 @@ jobs:
         id: set-matrix
         run: |
           set -euxo pipefail
+
+          CONFIGS=()
+          
           # Find all files in .config directory and format as a JSON array
-          CONFIGS=$(find .config -maxdepth 1 -type f -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
-          echo "configs=$CONFIGS" >> $GITHUB_OUTPUT
-          echo "Detected configs: $CONFIGS"
+          for file in .config/*; do
+            [ -e "$file" ] || continue
+            filename=$(basename "$file")
+
+            # If this is a push event, check if the build_on_push flag is
+            # set to false in the configuration file. If so, skip this config.
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              if jq -e '.build_on_push == false' "$file" > /dev/null 2>&1; then
+                echo "Skipping $filename due to build_on_push=false"
+                continue
+              fi
+            fi
+            CONFIGS+=("$filename")
+          done  
+
+          JSON_CONFIGS=$(printf '%s\n' "${CONFIGS[@]}" | jq -R -s -c 'split("\n")[:-1]')
+
+          echo "configs=$JSON_CONFIGS" >> $GITHUB_OUTPUT
+          echo "Detected configs: $JSON_CONFIGS"
 
   build:
     needs: detect
@@ -66,25 +85,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load Config
+      - name: Load and Merge Config
         id: load-config
         run: |
           set -euxo pipefail
-
           CONFIG_FILE=".config/${{ matrix.config }}"
-          if [ -f "$CONFIG_FILE" ]; then
-            # 1. Map keys to GITHUB_ENV for general use (e.g. $FEDORA_VERSION)
-            jq -r '.arguments | to_entries[] | "\(.key)=\(.value)"' "$CONFIG_FILE" >> $GITHUB_ENV
+          
+          # Recursive function with depth tracking and schema-aware merging
+          resolve_config() {
+              local current_file="$1"
+              local depth="${2:-0}"
+              
+              if [ "$depth" -gt 5 ]; then
+                  echo "Error: Maximum inheritance depth exceeded in $current_file" >&2
+                  exit 1
+              fi
+              
+              if [ ! -f "$current_file" ]; then
+                  echo "Error: Config file not found: $current_file" >&2
+                  exit 1
+              fi
 
-            # 2. Generate a formatted string of --build-arg K=V for the docker build step
-            BUILD_ARGS=$(jq -r '.arguments | to_entries[] | "--build-arg \(.key)=\(.value)"' "$CONFIG_FILE" | xargs)
-            echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+              if jq -e '.extends' "$current_file" >/dev/null 2>&1; then
+                  local parent_ref
+                  parent_ref="$(jq -r '.extends' "$current_file")"
+                  local base_file
+                  base_file="$(dirname "$current_file")/$parent_ref"
+                  
+                  # Recursively resolve parent, then combine using a schema-aware jq filter:
+                  # - arguments: objects are merged
+                  # - containers/packages/repos: arrays are concatenated and deduplicated
+                  # - selinux.booleans: combined and deduplicated by 'name'
+                  jq -s '
+                    def deep_merge(base; child):
+                      base
+                      | .arguments = ((base.arguments // {}) * (child.arguments // {}))
+                      | .containers = (((base.containers // []) + (child.containers // [])) | unique)
+                      | .packages = (((base.packages // []) + (child.packages // [])) | unique)
+                      | .repos = (((base.repos // []) + (child.repos // [])) | unique)
+                      | .selinux.booleans = (((base.selinux.booleans // []) + (child.selinux.booleans // [])) | unique_by(.name))
+                      | .build_on_push = (child.build_on_push // base.build_on_push // true);
+                    
+                    deep_merge(.[0]; .[1])
+                  ' "$(resolve_config "$base_file" $((depth + 1)))" "$current_file"
+              else
+                  cat "$current_file"
+              fi
+          }
 
-            echo "Config loaded from $CONFIG_FILE"
-          else
-            echo "Error: $CONFIG_FILE not found."
-            exit 1
+          MERGED_TEMP=$(mktemp)
+          resolve_config "$CONFIG_FILE" > "$MERGED_TEMP"
+
+          # Validate final JSON structure
+          if ! jq empty "$MERGED_TEMP" 2>/dev/null; then
+              echo "Error: Merged configuration results in invalid JSON." >&2
+              cat "$MERGED_TEMP"
+              exit 1
           fi
+
+          # 1. Map arguments to GITHUB_ENV
+          jq -r '.arguments // {} | to_entries[] | "\(.key)=\(.value)"' "$MERGED_TEMP" >> $GITHUB_ENV
+          
+          # 2. Generate BUILD_ARGS string for Buildah
+          BUILD_ARGS=$(jq -r '.arguments // {} | to_entries[] | "--build-arg \(.key)=\(.value)"' "$MERGED_TEMP" | xargs)
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+
+          echo "Config loaded and deep-merged via jq from ${{ matrix.config }}"
+          rm -f "$MERGED_TEMP"
 
       - name: Get Versions
         id: get-versions

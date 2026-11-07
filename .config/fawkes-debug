@@ -1,0 +1,11 @@
+{
+  "extends": "fawkes",
+  "build_on_push": false,
+  "arguments": {
+    "CONFIG": "fawkes-debug",
+    "DEBUG": "true"
+  },
+  "packages": [
+    "pciutils"
+  ]
+}
