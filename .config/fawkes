@@ -29,23 +29,12 @@
     "uptime-kuma"
   ],
   "packages": [
-    "borgbackup",
     "nfs-utils",
-    "nftables",
-    "rclone"
+    "nftables"
   ],
   "repos": [],
   "selinux":
   {
-    "booleans": [
-      {
-        "name": "rsync_full_access",
-        "value": "1"
-      },
-      {
-        "name": "samba_export_all_rw",
-        "value": "1"
-      }
-    ]
+    "booleans": []
   }
 }
