@@ -1,0 +1,11 @@
+{
+  "extends": "prometheus",
+  "build_on_push": false,
+  "arguments": {
+    "CONFIG": "prometheus-debug",
+    "DEBUG": "true"
+  },
+  "packages": [
+    "pciutils"
+  ]
+}

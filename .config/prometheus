@@ -15,13 +15,7 @@
     "wyoming-openai"
   ],
   "packages": [
-    "borgbackup",
-    "https://github.com/twpayne/chezmoi/releases/download/v2.58.0/chezmoi-2.58.0-x86_64.rpm",
-    "firewalld",
-    "just",
-    "pciutils",
-    "rclone",
-    "tree"
+    "nftables"
   ],
   "repos": [],
   "selinux":

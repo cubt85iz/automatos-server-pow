@@ -1,0 +1,11 @@
+{
+  "extends": "hecate",
+  "build_on_push": false,
+  "arguments": {
+    "CONFIG": "hecate-debug",
+    "DEBUG": "true"
+  },
+  "packages": [
+    "pciutils"
+  ]
+}
