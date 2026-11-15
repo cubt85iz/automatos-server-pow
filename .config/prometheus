@@ -9,6 +9,7 @@
   },
   "containers": [
     "chatterbox-turbo",
+    "hermes",
     "llama-cpp",
     "open-webui",
     "parakeet",
